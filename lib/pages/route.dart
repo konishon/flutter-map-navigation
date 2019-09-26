@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -45,6 +46,7 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
           location.onLocationChanged().listen((value) {
             setState(() {
               currentLocation = value;
+//              _animatedMapMove(LatLng(currentLocation['latitude'], currentLocation['longitude']), mapController.zoom);
             });
           })
         });
@@ -53,15 +55,12 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   Future<http.Response> getRoute(LatLng startingPoint, LatLng endingPoint) {
     var url =
         "http://54.157.15.192:8989/route?point=${startingPoint.latitude},${startingPoint.longitude}"
-        "&point=${startingPoint.latitude},${startingPoint.longitude}&points_encoded=false";
+        "&point=${endingPoint.latitude},${endingPoint.longitude}&points_encoded=false";
     print("Getting route from $url");
-    url =
-        "http://54.157.15.192:8989/route?points_encoded=false&point=27.756469,85.072632&point=28.21729,83.984985";
     return http.get(url);
   }
 
   Future<Welcome> fetchRoute(LatLng startingPoint, LatLng endingPoint) async {
-    _animatedMapMove(startingPoint, 20.0);
     final response = await getRoute(startingPoint, endingPoint);
     var routePath = <LatLng>[];
     if (response.statusCode == 200) {
@@ -74,6 +73,8 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
       setState(() {
         points = routePath;
       });
+
+      mapController.fitBounds(LatLngBounds(startingPoint, endingPoint));
       return parseRouteFromJson(response.body);
     } else {
       // If that response was not OK, throw an error.
@@ -117,11 +118,17 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
         height: 80.0,
         point: latLng,
         builder: (ctx) => Container(
-          child: Icon(
-            Icons.all_inclusive,
-            color: Colors.red,
-          ),
-        ),
+            child: Column(
+          children: <Widget>[
+            Text(
+              "Open Space",
+            ),
+            Icon(
+              Icons.all_inclusive,
+              color: Colors.red,
+            ),
+          ],
+        )),
       );
     }).toList();
 
@@ -131,15 +138,18 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
       point: currentLocation == null
           ? LatLng(0, 0)
           : LatLng(currentLocation['latitude'], currentLocation['longitude']),
-      builder: (ctx) => Container(color: Colors.amber, child: Center(child: Text("Nishon"))),
+      builder: (ctx) =>
+          Container(color: Colors.amber, child: Center(child: Text("Nishon"))),
     ));
 
     return Scaffold(
       appBar: AppBar(centerTitle: true, title: Text('Navigation')),
       floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => fetchRoute(points[0], points[1]),
+          onPressed: () => fetchRoute(
+              LatLng(currentLocation['latitude'], currentLocation['longitude']),
+              openSpaces[Random().nextInt(openSpaces.length)]),
           icon: Icon(Icons.my_location),
-          label: Text("Follow")),
+          label: Text("NAVIGATE")),
       body: Column(
         children: [
           Column(
