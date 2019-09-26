@@ -9,14 +9,15 @@ class RoutePage extends StatefulWidget {
   _RoutePageState createState() => new _RoutePageState();
 }
 
-class _RoutePageState extends State<RoutePage> {
+class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   bool _permission = false;
   String error;
   bool currentWidget = true;
+  MapController mapController;
 
   var points = <LatLng>[
-    LatLng(27.693712, 85.321283),
-    LatLng(27.70589, 85.319824),
+    LatLng(27.756469,85.072632),
+    LatLng(28.21729,83.984985),
   ];
 
   var route;
@@ -24,21 +25,24 @@ class _RoutePageState extends State<RoutePage> {
   @override
   void initState() {
     super.initState();
+    mapController = MapController();
   }
 
   Future<http.Response> getRoute(LatLng startingPoint, LatLng endingPoint) {
     var url =
-        "http://54.157.15.192:8989/route?point=${startingPoint.latitude}%2C${startingPoint.longitude}"
-        "&point=${startingPoint.latitude}%2C${startingPoint.longitude}&points_encoded=false";
+        "http://54.157.15.192:8989/route?point=${startingPoint.latitude},${startingPoint.longitude}"
+        "&point=${startingPoint.latitude},${startingPoint.longitude}&points_encoded=false";
     print("Getting route from $url");
+    url = "http://54.157.15.192:8989/route?points_encoded=false&point=27.756469,85.072632&point=28.21729,83.984985";
     return http.get(url);
   }
 
   Future<Welcome> fetchRoute(LatLng startingPoint, LatLng endingPoint) async {
+    _animatedMapMove(startingPoint, 20.0);
     final response = await getRoute(startingPoint, endingPoint);
-    var routePath = <LatLng> [];
+    var routePath = <LatLng>[];
     if (response.statusCode == 200) {
-      welcomeFromJson(response.body)
+      parseRouteFromJson(response.body)
           .paths[0]
           .points
           .coordinates
@@ -47,11 +51,39 @@ class _RoutePageState extends State<RoutePage> {
       setState(() {
         points = routePath;
       });
-      return welcomeFromJson(response.body);
+      return parseRouteFromJson(response.body);
     } else {
       // If that response was not OK, throw an error.
       throw Exception('Failed to load route');
     }
+  }
+
+  void _animatedMapMove(LatLng destLocation, double destZoom) {
+    final _latTween = Tween<double>(
+        begin: mapController.center.latitude, end: destLocation.latitude);
+    final _lngTween = Tween<double>(
+        begin: mapController.center.longitude, end: destLocation.longitude);
+    final _zoomTween = Tween<double>(begin: mapController.zoom, end: destZoom);
+
+    var controller = AnimationController(
+        duration: const Duration(milliseconds: 500), vsync: this);
+    Animation<double> animation =
+        CurvedAnimation(parent: controller, curve: Curves.fastOutSlowIn);
+    controller.addListener(() {
+      mapController.move(
+          LatLng(_latTween.evaluate(animation), _lngTween.evaluate(animation)),
+          _zoomTween.evaluate(animation));
+    });
+
+    animation.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        controller.dispose();
+      } else if (status == AnimationStatus.dismissed) {
+        controller.dispose();
+      }
+    });
+
+    controller.forward();
   }
 
   Widget build(BuildContext context) {
@@ -64,8 +96,9 @@ class _RoutePageState extends State<RoutePage> {
         children: [
           Flexible(
             child: FlutterMap(
+              mapController: mapController,
               options: MapOptions(
-                center: LatLng(27.7297, 85.3290),
+                center: points[1],
                 zoom: 18.0,
               ),
               layers: [
