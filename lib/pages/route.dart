@@ -20,10 +20,18 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   Location location = Location();
 
   Map<String, double> currentLocation;
+  List<LatLng> tappedPoints = [];
 
   var points = <LatLng>[
     LatLng(27.756469, 85.072632),
     LatLng(28.21729, 83.984985),
+  ];
+
+  var openSpaces = <LatLng>[
+    LatLng(27.7092528844159, 85.34158229827881),
+    LatLng(27.700248, 85.313601),
+    LatLng(27.6852, 85.348835),
+    LatLng(27.682882, 85.322185),
   ];
 
   var route;
@@ -37,9 +45,6 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
           location.onLocationChanged().listen((value) {
             setState(() {
               currentLocation = value;
-              print("Location stream: ${location.getLocation()}");
-              _animatedMapMove(LatLng(value['latitude'],value['longitude']), 18);
-
             });
           })
         });
@@ -106,17 +111,41 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   }
 
   Widget build(BuildContext context) {
+    var markers = openSpaces.map((latLng) {
+      return Marker(
+        width: 80.0,
+        height: 80.0,
+        point: latLng,
+        builder: (ctx) => Container(
+          child: Icon(
+            Icons.all_inclusive,
+            color: Colors.red,
+          ),
+        ),
+      );
+    }).toList();
+
+    markers.add(Marker(
+      width: 50.0,
+      height: 20.0,
+      point: currentLocation == null
+          ? LatLng(0, 0)
+          : LatLng(currentLocation['latitude'], currentLocation['longitude']),
+      builder: (ctx) => Container(color: Colors.amber, child: Center(child: Text("Nishon"))),
+    ));
+
     return Scaffold(
       appBar: AppBar(centerTitle: true, title: Text('Navigation')),
       floatingActionButton: FloatingActionButton.extended(
           onPressed: () => fetchRoute(points[0], points[1]),
-          label: Text("Route")),
+          icon: Icon(Icons.my_location),
+          label: Text("Follow")),
       body: Column(
         children: [
           Column(
             children: <Widget>[
               currentLocation == null
-                  ? CircularProgressIndicator()
+                  ? Text("Loading")
                   : Text("Location:" +
                       currentLocation["latitude"].toString() +
                       " " +
@@ -127,8 +156,12 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
             child: FlutterMap(
               mapController: mapController,
               options: MapOptions(
-                center: points[1],
-                zoom: 18.0,
+                center: openSpaces[0],
+                onTap: (point) => print(point),
+                onPositionChanged: (position, hasGesture) =>
+                    print("$position $hasGesture"),
+                onLongPress: (point) => print(point),
+                zoom: 12.0,
               ),
               layers: [
                 TileLayerOptions(
@@ -149,35 +182,19 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
                         color: Colors.purple),
                   ],
                 ),
-                MarkerLayerOptions(
-                  markers: [
-                    Marker(
-                        width: 80.0,
-                        height: 80.0,
-                        point: points[0],
-                        builder: (ctx) => Container(
-                              child: Icon(
-                                Icons.star,
-                                color: Colors.green,
-                              ),
-                            )),
-                    Marker(
-                        width: 80.0,
-                        height: 80.0,
-                        point: points[1],
-                        builder: (ctx) => Container(
-                              child: Icon(
-                                Icons.star_border,
-                                color: Colors.red,
-                              ),
-                            )),
-                  ],
-                )
+                MarkerLayerOptions(markers: markers)
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _handleTap(LatLng latlng) {
+    print("ok");
+    setState(() {
+      tappedPoints.add(latlng);
+    });
   }
 }
