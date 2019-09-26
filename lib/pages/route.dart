@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong/latlong.dart';
 import 'package:http/http.dart' as http;
+import 'package:latlong/latlong.dart';
+import 'package:location/location.dart';
 import 'package:navigation/parser/route_parser.dart';
 
 class RoutePage extends StatefulWidget {
@@ -14,10 +17,13 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   String error;
   bool currentWidget = true;
   MapController mapController;
+  Location location = Location();
+
+  Map<String, double> currentLocation;
 
   var points = <LatLng>[
-    LatLng(27.756469,85.072632),
-    LatLng(28.21729,83.984985),
+    LatLng(27.756469, 85.072632),
+    LatLng(28.21729, 83.984985),
   ];
 
   var route;
@@ -26,6 +32,17 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     mapController = MapController();
+    location.hasPermission().then((perm) => {
+          print("Location start: ${location.getLocation()}"),
+          location.onLocationChanged().listen((value) {
+            setState(() {
+              currentLocation = value;
+              print("Location stream: ${location.getLocation()}");
+              _animatedMapMove(LatLng(value['latitude'],value['longitude']), 18);
+
+            });
+          })
+        });
   }
 
   Future<http.Response> getRoute(LatLng startingPoint, LatLng endingPoint) {
@@ -33,7 +50,8 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
         "http://54.157.15.192:8989/route?point=${startingPoint.latitude},${startingPoint.longitude}"
         "&point=${startingPoint.latitude},${startingPoint.longitude}&points_encoded=false";
     print("Getting route from $url");
-    url = "http://54.157.15.192:8989/route?points_encoded=false&point=27.756469,85.072632&point=28.21729,83.984985";
+    url =
+        "http://54.157.15.192:8989/route?points_encoded=false&point=27.756469,85.072632&point=28.21729,83.984985";
     return http.get(url);
   }
 
@@ -66,9 +84,10 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
     final _zoomTween = Tween<double>(begin: mapController.zoom, end: destZoom);
 
     var controller = AnimationController(
-        duration: const Duration(milliseconds: 500), vsync: this);
+        duration: const Duration(milliseconds: 1000), vsync: this);
+
     Animation<double> animation =
-        CurvedAnimation(parent: controller, curve: Curves.fastOutSlowIn);
+        CurvedAnimation(parent: controller, curve: Curves.linear);
     controller.addListener(() {
       mapController.move(
           LatLng(_latTween.evaluate(animation), _lngTween.evaluate(animation)),
@@ -94,6 +113,16 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
           label: Text("Route")),
       body: Column(
         children: [
+          Column(
+            children: <Widget>[
+              currentLocation == null
+                  ? CircularProgressIndicator()
+                  : Text("Location:" +
+                      currentLocation["latitude"].toString() +
+                      " " +
+                      currentLocation["longitude"].toString()),
+            ],
+          ),
           Flexible(
             child: FlutterMap(
               mapController: mapController,
@@ -114,7 +143,10 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
                 PolylineLayerOptions(
                   polylines: [
                     Polyline(
-                        points: points, strokeWidth: 4.0, color: Colors.purple),
+                        isDotted: true,
+                        points: points,
+                        strokeWidth: 4.0,
+                        color: Colors.purple),
                   ],
                 ),
                 MarkerLayerOptions(
