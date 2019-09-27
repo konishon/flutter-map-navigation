@@ -69,6 +69,7 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
           "&point=${endingPoint.latitude},${endingPoint.longitude}"
           "&points_encoded=false"
           "&ch.disable=true"
+          "&alternative_route.max_paths=3"
           "&algorithm=alternative_route";
     } else {
       url =
@@ -89,30 +90,32 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   fetchRoute(LatLng startingPoint, LatLng endingPoint) async {
     paths.clear();
     navigationDownloadProgress(true);
-
-    final optimalPath = await getRoute(startingPoint, endingPoint, true);
-    final altPath = await getRoute(startingPoint, endingPoint, false);
-
     var responses = [];
-    responses.add(optimalPath);
+
+//    final optimalPath = await getRoute(startingPoint, endingPoint, true);
+//    responses.add(optimalPath);
+
+    final altPath = await getRoute(startingPoint, endingPoint, true);
     responses.add(altPath);
 
     for (var i = 0; i < responses.length; i++) {
-      var routePath = <LatLng>[];
       var response = responses[i];
       if (response.statusCode == 200) {
-        parseRouteFromJson(response.body)
-            .paths[0]
-            .points
-            .coordinates
-            .forEach((latLng) => {routePath.add(LatLng(latLng[1], latLng[0]))});
+        var json = parseRouteFromJson(response.body);
 
-        paths.add(routePath);
+
+
+        for (var j = 0; j < json.paths.length; j++) {
+          var routePath = <LatLng>[];
+          json.paths[j].points.coordinates.forEach(
+              (latLng) => {routePath.add(LatLng(latLng[1], latLng[0]))});
+          paths.add(routePath);
+        }
       } else {
         throw Exception('Failed to load route');
       }
     }
-    var colors = [Colors.red, Colors.purple];
+    var colors = [Colors.red, Colors.purple,Colors.green];
     var colorIndex = 0;
     polylines = paths.map((path) {
       var polyline = Polyline(
@@ -227,10 +230,6 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
               mapController: mapController,
               options: MapOptions(
                 center: openSpaces[0],
-                onTap: (point) => print(point),
-                onPositionChanged: (position, hasGesture) =>
-                    print("$position $hasGesture"),
-                onLongPress: (point) => print(point),
                 zoom: 12.0,
               ),
               layers: [
