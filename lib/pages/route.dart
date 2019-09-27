@@ -48,12 +48,20 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     mapController = MapController();
+    subscribeToLocationChanges(isLocationOn);
+  }
+
+  subscribeToLocationChanges(bool subscribe) {
     location.hasPermission().then((perm) => {
-          print("Location start: ${location.getLocation()}"),
           location.onLocationChanged().listen((value) {
+            if (!subscribe) {
+              print("Ignoring to location changes");
+              return;
+            }
+
+            print("Subscribed to location changes");
             setState(() {
               currentLocation = value;
-//              _animatedMapMove(LatLng(currentLocation['latitude'], currentLocation['longitude']), mapController.zoom);
             });
           })
         });
@@ -103,8 +111,6 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
       if (response.statusCode == 200) {
         var json = parseRouteFromJson(response.body);
 
-
-
         for (var j = 0; j < json.paths.length; j++) {
           var routePath = <LatLng>[];
           json.paths[j].points.coordinates.forEach(
@@ -115,7 +121,7 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
         throw Exception('Failed to load route');
       }
     }
-    var colors = [Colors.red, Colors.purple,Colors.green];
+    var colors = [Colors.red, Colors.purple, Colors.green];
     var colorIndex = 0;
     polylines = paths.map((path) {
       var polyline = Polyline(
@@ -256,6 +262,7 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
               setState(() {
                 isLocationOn = value;
               });
+              subscribeToLocationChanges(isLocationOn);
             },
             secondary: isLocationOn
                 ? Icon(
