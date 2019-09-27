@@ -23,6 +23,8 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   Map<String, double> currentLocation;
   List<LatLng> tappedPoints = [];
 
+  var paths = [];
+
   var points = <LatLng>[
     LatLng(27.756469, 85.072632),
     LatLng(28.21729, 83.984985),
@@ -36,6 +38,10 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   ];
 
   var route;
+  bool altRoute = false;
+  bool isLocationOn = false;
+
+  List<Polyline> polylines = [];
 
   @override
   void initState() {
@@ -52,34 +58,64 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
         });
   }
 
-  Future<http.Response> getRoute(LatLng startingPoint, LatLng endingPoint) {
-    var url =
-        "http://54.157.15.192:8989/route?point=${startingPoint.latitude},${startingPoint.longitude}"
-        "&point=${endingPoint.latitude},${endingPoint.longitude}&points_encoded=false";
+  Future<http.Response> getRoute(
+      LatLng startingPoint, LatLng endingPoint, bool selectAltRoute) {
+    var url;
+    var baseUrl = "http://54.157.15.192:8989/route";
+    if (selectAltRoute) {
+      url =
+          "$baseUrl?point=${startingPoint.latitude},${startingPoint.longitude}"
+          "&point=${endingPoint.latitude},${endingPoint.longitude}"
+          "&points_encoded=false"
+          "&ch.disable=true"
+          "&algorithm=alternative_route";
+    } else {
+      url =
+          "$baseUrl?point=${startingPoint.latitude},${startingPoint.longitude}"
+          "&point=${endingPoint.latitude},${endingPoint.longitude}"
+          "&points_encoded=false";
+    }
     print("Getting route from $url");
     return http.get(url);
   }
 
-  Future<Welcome> fetchRoute(LatLng startingPoint, LatLng endingPoint) async {
-    final response = await getRoute(startingPoint, endingPoint);
-    var routePath = <LatLng>[];
-    if (response.statusCode == 200) {
-      parseRouteFromJson(response.body)
-          .paths[0]
-          .points
-          .coordinates
-          .forEach((latLng) => {routePath.add(LatLng(latLng[1], latLng[0]))});
+  fetchRoute(LatLng startingPoint, LatLng endingPoint) async {
+    paths.clear();
 
-      setState(() {
-        points = routePath;
-      });
+    final optimalPath = await getRoute(startingPoint, endingPoint, true);
+    final altPath = await getRoute(startingPoint, endingPoint, false);
 
-      mapController.fitBounds(LatLngBounds(startingPoint, endingPoint));
-      return parseRouteFromJson(response.body);
-    } else {
-      // If that response was not OK, throw an error.
-      throw Exception('Failed to load route');
+    var responses = [];
+    responses.add(optimalPath);
+    responses.add(altPath);
+
+    for (var i = 0; i < responses.length; i++) {
+      var routePath = <LatLng>[];
+      var response = responses[i];
+      if (response.statusCode == 200) {
+        parseRouteFromJson(response.body)
+            .paths[0]
+            .points
+            .coordinates
+            .forEach((latLng) => {routePath.add(LatLng(latLng[1], latLng[0]))});
+
+        paths.add(routePath);
+      } else {
+        throw Exception('Failed to load route');
+      }
     }
+    var colors = [Colors.red, Colors.purple];
+    var colorIndex = 0;
+    polylines = paths.map((path) {
+      var polyline = Polyline(
+          isDotted: colorIndex == 0 ? false : true,
+          points: path,
+          strokeWidth: colorIndex == 0 ? 5.0 : 4.0,
+          color: colors[colorIndex]);
+      colorIndex++;
+      return polyline;
+    }).toList();
+    mapController.fitBounds(LatLngBounds(startingPoint, endingPoint));
   }
 
   void _animatedMapMove(LatLng destLocation, double destZoom) {
@@ -143,13 +179,21 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
     ));
 
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: Text('Navigation')),
-      floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => fetchRoute(
-              LatLng(currentLocation['latitude'], currentLocation['longitude']),
-              openSpaces[Random().nextInt(openSpaces.length)]),
-          icon: Icon(Icons.my_location),
-          label: Text("NAVIGATE")),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text('Navigation'),
+        actions: <Widget>[],
+      ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 50.0),
+        child: FloatingActionButton.extended(
+            onPressed: () => fetchRoute(
+                LatLng(
+                    currentLocation['latitude'], currentLocation['longitude']),
+                openSpaces[Random().nextInt(openSpaces.length)]),
+            icon: Icon(Icons.my_location),
+            label: Text("NAVIGATE")),
+      ),
       body: Column(
         children: [
           Column(
@@ -183,18 +227,27 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
                     'id': 'mapbox.streets',
                   },
                 ),
-                PolylineLayerOptions(
-                  polylines: [
-                    Polyline(
-                        isDotted: true,
-                        points: points,
-                        strokeWidth: 4.0,
-                        color: Colors.purple),
-                  ],
-                ),
+                PolylineLayerOptions(polylines: polylines),
                 MarkerLayerOptions(markers: markers)
               ],
             ),
+          ),
+          SwitchListTile(
+            title: isLocationOn
+                ? Text('Turn off tracking')
+                : Text('Turn on tracking'),
+            value: isLocationOn,
+            onChanged: (bool value) {
+              setState(() {
+                isLocationOn = value;
+              });
+            },
+            secondary: isLocationOn
+                ? Icon(
+                    Icons.location_searching,
+                    color: Colors.green,
+                  )
+                : Icon(Icons.location_disabled),
           ),
         ],
       ),
@@ -202,7 +255,6 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   }
 
   void _handleTap(LatLng latlng) {
-    print("ok");
     setState(() {
       tappedPoints.add(latlng);
     });
