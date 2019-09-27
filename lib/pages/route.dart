@@ -42,6 +42,7 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   bool isLocationOn = false;
 
   List<Polyline> polylines = [];
+  bool loadingRoute = false;
 
   @override
   void initState() {
@@ -79,8 +80,15 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
     return http.get(url);
   }
 
+  navigationDownloadProgress(bool showProgress) {
+    setState(() {
+      loadingRoute = showProgress;
+    });
+  }
+
   fetchRoute(LatLng startingPoint, LatLng endingPoint) async {
     paths.clear();
+    navigationDownloadProgress(true);
 
     final optimalPath = await getRoute(startingPoint, endingPoint, true);
     final altPath = await getRoute(startingPoint, endingPoint, false);
@@ -115,6 +123,8 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
       colorIndex++;
       return polyline;
     }).toList();
+
+    navigationDownloadProgress(false);
     mapController.fitBounds(LatLngBounds(startingPoint, endingPoint));
   }
 
@@ -191,7 +201,13 @@ class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
                 LatLng(
                     currentLocation['latitude'], currentLocation['longitude']),
                 openSpaces[Random().nextInt(openSpaces.length)]),
-            icon: Icon(Icons.my_location),
+            icon: Center(
+              child: loadingRoute
+                  ? CircularProgressIndicator(
+                      backgroundColor: Colors.green,
+                    )
+                  : Icon(Icons.my_location),
+            ),
             label: Text("NAVIGATE")),
       ),
       body: Column(
